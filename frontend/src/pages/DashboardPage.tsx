@@ -1,19 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
 import { getMyAccount } from '../api/accounts';
-
-function formatMoney(value: string): string {
-  const [whole, decimal = ''] = value.split('.');
-  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  const significantDecimal = decimal.replace(/0+$/, '');
-  return significantDecimal ? `${grouped},${significantDecimal}` : grouped;
-}
+import BankingLayout from '../components/BankingLayout';
+import { formatMoney } from '../lib/money';
 
 export default function DashboardPage() {
-  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
-  const logout = useAuthStore((s) => s.logout);
 
   // Gọi API lấy dữ liệu thẻ ngân hàng (Số dư)
   const {
@@ -25,77 +18,126 @@ export default function DashboardPage() {
     queryFn: getMyAccount,
   });
 
-  const onLogout = () => {
-    logout();
-    navigate('/login');
-  };
-
   return (
-    <div className="min-h-screen bg-slate-100">
-      <header className="bg-white shadow-sm">
-        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
-          <h1 className="text-lg font-bold text-slate-800">Simple Banking</h1>
-          <button
-            onClick={onLogout}
-            className="text-sm bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg px-4 py-2 transition"
-          >
-            Đăng xuất
-          </button>
-        </div>
-      </header>
-
-      <main className="max-w-3xl mx-auto px-6 py-8 space-y-6">
-
-        {/* --- KHU VỰC THẺ NGÂN HÀNG (MỚI) --- */}
-        <div className="bg-gradient-to-br from-emerald-600 to-teal-800 rounded-2xl shadow-lg p-6 text-white">
-          <h2 className="text-sm font-semibold opacity-80 mb-6">THẺ GIAO DỊCH</h2>
-
-          {accountLoading ? (
-            <div className="animate-pulse flex space-x-4">
-              <div className="h-4 bg-white/30 rounded w-1/4"></div>
-            </div>
-          ) : accountError ? (
-            <p className="text-red-200 text-sm">Không tải được thông tin tài khoản.</p>
-          ) : account ? (
-            <div>
-              <div className="text-3xl font-bold tracking-widest mb-2 font-mono">
-                {account.accountNumber.replace(/(.{4})/g, '$1 ').trim()}
+    <BankingLayout
+      title={`Xin chào, ${user?.fullName || 'bạn'}`}
+      subtitle="Tổng quan tài khoản và các thao tác ngân hàng của bạn."
+    >
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="space-y-6">
+          <div className="rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-800 p-7 text-white shadow-lg">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-widest text-emerald-100">
+                  Tài khoản thanh toán
+                </p>
+                <p className="mt-1 text-sm text-emerald-50">Simple Banking</p>
               </div>
-              <div className="mt-8 flex justify-between items-end">
-                <div>
-                  <div className="text-xs opacity-70 mb-1">SỐ DƯ KHẢ DỤNG</div>
-                  <div className="text-2xl font-bold">
-                    {formatMoney(account.balance)}{' '}
-                    <span className="text-lg">{account.currency}</span>
+              <span className="rounded-lg bg-white/15 px-3 py-1 text-xs font-semibold">
+                {account?.currency || 'VND'}
+              </span>
+            </div>
+
+            {accountLoading ? (
+              <div className="mt-8 h-24 animate-pulse rounded-xl bg-white/15" />
+            ) : accountError ? (
+              <p className="mt-8 text-sm text-red-100">
+                Không tải được thông tin tài khoản.
+              </p>
+            ) : account ? (
+              <div className="mt-8">
+                <p className="font-mono text-2xl font-semibold tracking-[0.18em]">
+                  {account.accountNumber}
+                </p>
+                <div className="mt-7 flex items-end justify-between gap-4">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-emerald-100">
+                      Số dư khả dụng
+                    </p>
+                    <p className="mt-1 text-3xl font-bold">
+                      {formatMoney(account.balance)}{' '}
+                      <span className="text-lg font-semibold">{account.currency}</span>
+                    </p>
                   </div>
-                </div>
-                <div className="uppercase opacity-90 font-medium tracking-wider">
-                  {user?.fullName}
+                  <p className="text-right text-sm font-semibold uppercase tracking-wider text-emerald-50">
+                    {user?.fullName}
+                  </p>
                 </div>
               </div>
-            </div>
-          ) : null}
-        </div>
-        {/* --------------------------------- */}
+            ) : null}
+          </div>
 
-        {/* Khu vực thông tin cá nhân cũ */}
-        <div className="bg-white rounded-2xl shadow-sm p-6">
-          <h2 className="text-base font-semibold text-slate-700 mb-4">Thông tin hồ sơ</h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Link
+              to="/transfer"
+              className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md"
+            >
+              <span className="grid h-11 w-11 place-items-center rounded-xl bg-emerald-100 text-xl font-bold text-emerald-700">
+                ↑
+              </span>
+              <h2 className="mt-4 font-semibold text-slate-900">Chuyển khoản</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Chuyển tiền tới tài khoản nội bộ an toàn và tức thời.
+              </p>
+              <p className="mt-4 text-sm font-semibold text-emerald-700 group-hover:text-emerald-800">
+                Thực hiện giao dịch →
+              </p>
+            </Link>
+
+            <Link
+              to="/transactions"
+              className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md"
+            >
+              <span className="grid h-11 w-11 place-items-center rounded-xl bg-sky-100 text-xl font-bold text-sky-700">
+                ↔
+              </span>
+              <h2 className="mt-4 font-semibold text-slate-900">Lịch sử giao dịch</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Kiểm tra các khoản tiền vào, tiền ra và trạng thái.
+              </p>
+              <p className="mt-4 text-sm font-semibold text-emerald-700 group-hover:text-emerald-800">
+                Xem lịch sử →
+              </p>
+            </Link>
+          </div>
+        </div>
+
+        <aside className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="font-semibold text-slate-900">Thông tin hồ sơ</h2>
+          <p className="mt-1 text-sm text-slate-500">Thông tin chủ tài khoản hiện tại.</p>
 
           {user && (
-            <dl className="grid grid-cols-3 gap-y-3 text-sm">
-              <dt className="text-slate-500">Họ tên</dt>
-              <dd className="col-span-2 font-medium text-slate-800">{user.fullName}</dd>
-
-              <dt className="text-slate-500">Email</dt>
-              <dd className="col-span-2 font-medium text-slate-800">{user.email}</dd>
-
-              <dt className="text-slate-500">Vai trò</dt>
-              <dd className="col-span-2 font-medium text-slate-800">{user.role}</dd>
+            <dl className="mt-6 space-y-5 text-sm">
+              <div>
+                <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                  Họ tên
+                </dt>
+                <dd className="mt-1 font-semibold text-slate-800">{user.fullName}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                  Email
+                </dt>
+                <dd className="mt-1 break-all font-semibold text-slate-800">{user.email}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                  Vai trò
+                </dt>
+                <dd className="mt-1 font-semibold capitalize text-slate-800">{user.role}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                  Trạng thái
+                </dt>
+                <dd className="mt-1 inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                  Đang hoạt động
+                </dd>
+              </div>
             </dl>
           )}
-        </div>
-      </main>
-    </div>
+        </aside>
+      </div>
+    </BankingLayout>
   );
 }

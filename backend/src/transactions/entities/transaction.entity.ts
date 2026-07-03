@@ -7,7 +7,6 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { ColumnNumericTransformer } from '../../common/transformers/column-numeric.transformer';
 import { Account } from '../../accounts/entities/account.entity';
 
 /** Loại giao dịch. */
@@ -52,14 +51,18 @@ export class Transaction {
   @Column({ name: 'to_account_id', type: 'uuid', nullable: true })
   toAccountId: string | null;
 
-  // Số tiền — numeric(18,2), KHÔNG dùng float.
+  // Giữ numeric dưới dạng string ở tầng app để không mất độ chính xác của tiền.
   @Column({
     type: 'numeric',
     precision: 18,
     scale: 2,
-    transformer: new ColumnNumericTransformer(),
   })
-  amount: number;
+  amount: string;
+
+  // Một key chỉ tạo tối đa một giao dịch, chống double-submit từ client.
+  @Index({ unique: true })
+  @Column({ name: 'idempotency_key', type: 'uuid', unique: true })
+  idempotencyKey: string;
 
   @Column({
     type: 'enum',
