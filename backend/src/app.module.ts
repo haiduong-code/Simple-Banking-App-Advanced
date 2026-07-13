@@ -1,12 +1,15 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AdminModule } from './admin/admin.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { AccountsModule } from './accounts/accounts.module';
+import { AuditModule } from './audit/audit.module';
 import { TransactionsModule } from './transactions/transactions.module';
+import { LedgerModule } from './ledger/ledger.module';
 import * as Joi from 'joi';
 
 @Module({
@@ -43,7 +46,10 @@ import * as Joi from 'joi';
     UsersModule,
     AccountsModule,
     AuthModule,
+    AuditModule,
+    LedgerModule,
     TransactionsModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],

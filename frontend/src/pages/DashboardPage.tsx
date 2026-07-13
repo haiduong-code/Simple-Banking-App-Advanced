@@ -99,6 +99,40 @@ export default function DashboardPage() {
                 Xem lịch sử →
               </p>
             </Link>
+
+            <Link
+              to="/profile"
+              className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md"
+            >
+              <span className="grid h-11 w-11 place-items-center rounded-xl bg-violet-100 text-xl font-bold text-violet-700">
+                ◎
+              </span>
+              <h2 className="mt-4 font-semibold text-slate-900">Hồ sơ & history</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Cập nhật thông tin cá nhân và xem lịch sử thay đổi.
+              </p>
+              <p className="mt-4 text-sm font-semibold text-emerald-700 group-hover:text-emerald-800">
+                Mở hồ sơ →
+              </p>
+            </Link>
+
+            {user?.role === 'admin' && (
+              <Link
+                to="/admin/module-3"
+                className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md"
+              >
+                <span className="grid h-11 w-11 place-items-center rounded-xl bg-amber-100 text-xl font-bold text-amber-700">
+                  §
+                </span>
+                <h2 className="mt-4 font-semibold text-slate-900">Admin Module 3</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Quản lý audit log, soft delete, reversal và versioning.
+                </p>
+                <p className="mt-4 text-sm font-semibold text-emerald-700 group-hover:text-emerald-800">
+                  Mở console →
+                </p>
+              </Link>
+            )}
           </div>
         </div>
 
@@ -130,8 +164,14 @@ export default function DashboardPage() {
                 <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">
                   Trạng thái
                 </dt>
-                <dd className="mt-1 inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                  Đang hoạt động
+                <dd
+                  className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                    user.status === 'active'
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : 'bg-red-50 text-red-700'
+                  }`}
+                >
+                  {user.status === 'active' ? 'Đang hoạt động' : 'Đã khóa'}
                 </dd>
               </div>
             </dl>

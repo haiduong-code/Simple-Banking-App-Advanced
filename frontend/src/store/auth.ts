@@ -8,6 +8,7 @@ interface AuthState {
   user: SafeUser | null;
   isAuthenticated: boolean;
   setAuth: (token: string, user: SafeUser) => void;
+  updateUser: (user: SafeUser) => void;
   logout: () => void;
 }
 
@@ -20,6 +21,9 @@ export const useAuthStore = create<AuthState>()(
       setAuth: (token, user) => {
         tokenStorage.set(token); // dong bo cho axios interceptor
         set({ token, user, isAuthenticated: true });
+      },
+      updateUser: (user) => {
+        set({ user });
       },
       logout: () => {
         tokenStorage.clear();

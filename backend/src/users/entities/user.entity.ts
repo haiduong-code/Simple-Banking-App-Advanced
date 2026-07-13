@@ -2,6 +2,7 @@ import { Exclude } from 'class-transformer';
 import {
   Column,
   CreateDateColumn,
+  DeleteDateColumn,
   Entity,
   Index,
   OneToMany,
@@ -55,6 +56,9 @@ export class User {
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
+
+  @DeleteDateColumn({ name: 'deleted_at', type: 'timestamptz', nullable: true })
+  deletedAt: Date | null;
 
   // Một user có thể sở hữu nhiều tài khoản ngân hàng.
   @OneToMany(() => Account, (account) => account.user)

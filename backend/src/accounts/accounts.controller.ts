@@ -1,9 +1,20 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AccountsService } from './accounts.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { UserRole } from '../users/entities/user.entity';
+import { AccountHistoryQueryDto } from './dto/account-history-query.dto';
 
 @ApiTags('accounts')
 @Controller('accounts')
@@ -25,5 +36,18 @@ export class AccountsController {
       currency: account.currency,
       createdAt: account.createdAt,
     };
+  }
+
+  @Get(':id/history')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary: 'Xem lịch sử thay đổi account, chỉ dành cho admin',
+  })
+  getAccountHistory(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) accountId: string,
+    @Query() query: AccountHistoryQueryDto,
+  ) {
+    return this.accountsService.findHistory(accountId, query);
   }
 }

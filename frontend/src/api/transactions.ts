@@ -1,5 +1,7 @@
 import api from '../lib/api';
 import type {
+  ReverseTransactionPayload,
+  ReverseTransactionResult,
   TransactionHistoryParams,
   TransactionHistoryResponse,
   TransferPayload,
@@ -24,5 +26,16 @@ export async function getTransactionHistory(
   const { data } = await api.get<TransactionHistoryResponse>('/transactions', {
     params,
   });
+  return data;
+}
+
+export async function reverseTransaction(
+  transactionId: string,
+  payload: ReverseTransactionPayload,
+): Promise<ReverseTransactionResult> {
+  const { data } = await api.post<ReverseTransactionResult>(
+    `/transactions/${transactionId}/reverse`,
+    payload,
+  );
   return data;
 }

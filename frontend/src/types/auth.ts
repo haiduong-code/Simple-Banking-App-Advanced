@@ -5,6 +5,7 @@ export interface SafeUser {
   role: 'customer' | 'admin';
   status: 'active' | 'locked';
   createdAt: string;
+  deletedAt?: string | null;
 }
 
 export interface AuthResult {

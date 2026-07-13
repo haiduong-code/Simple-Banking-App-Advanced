@@ -8,10 +8,11 @@ interface BankingLayoutProps {
   subtitle: string;
 }
 
-const navigation = [
+const baseNavigation = [
   { to: '/dashboard', label: 'Tổng quan' },
   { to: '/transfer', label: 'Chuyển khoản' },
   { to: '/transactions', label: 'Lịch sử giao dịch' },
+  { to: '/profile', label: 'Hồ sơ' },
 ];
 
 export default function BankingLayout({
@@ -22,6 +23,10 @@ export default function BankingLayout({
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
+  const navigation =
+    user?.role === 'admin'
+      ? [...baseNavigation, { to: '/admin/module-3', label: 'Admin Module 3' }]
+      : baseNavigation;
 
   const onLogout = () => {
     logout();

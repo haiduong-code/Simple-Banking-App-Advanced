@@ -5,21 +5,26 @@ import {
   Index,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { Account } from '../../accounts/entities/account.entity';
+import { LedgerEntry } from '../../ledger/entities/ledger-entry.entity';
 
 /** Loại giao dịch. */
 export enum TransactionType {
   TRANSFER = 'transfer',
   DEPOSIT = 'deposit',
+  REVERSAL = 'reversal',
+  OPENING_BALANCE = 'opening_balance',
 }
 
 /** Trạng thái giao dịch. */
 export enum TransactionStatus {
-  SUCCESS = 'success',
-  FAILED = 'failed',
   PENDING = 'pending',
+  COMPLETED = 'completed',
+  FAILED = 'failed',
+  REVERSED = 'reversed',
 }
 
 @Entity('transactions')
@@ -78,9 +83,42 @@ export class Transaction {
   })
   status: TransactionStatus;
 
+  @Column({ name: 'completed_at', type: 'timestamptz', nullable: true })
+  completedAt: Date | null;
+
+  @Column({ name: 'reversed_at', type: 'timestamptz', nullable: true })
+  reversedAt: Date | null;
+
+  // Giao dịch gốc nếu bản ghi này là giao dịch hoàn tiền/reversal.
+  @ManyToOne(
+    () => Transaction,
+    (transaction) => transaction.reversalTransactions,
+    {
+      nullable: true,
+      onDelete: 'RESTRICT',
+    },
+  )
+  @JoinColumn({ name: 'original_transaction_id' })
+  originalTransaction: Transaction | null;
+
+  @Index()
+  @Column({ name: 'original_transaction_id', type: 'uuid', nullable: true })
+  originalTransactionId: string | null;
+
+  // Các giao dịch hoàn tiền trỏ về giao dịch gốc này.
+  @OneToMany(
+    () => Transaction,
+    (transaction) => transaction.originalTransaction,
+  )
+  reversalTransactions: Transaction[];
+
   @Column({ type: 'varchar', length: 255, nullable: true })
   description: string | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
+
+  // Các bút toán sổ cái được sinh từ giao dịch này.
+  @OneToMany(() => LedgerEntry, (entry) => entry.transaction)
+  ledgerEntries: LedgerEntry[];
 }

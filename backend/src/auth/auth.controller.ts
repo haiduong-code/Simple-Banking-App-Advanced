@@ -4,9 +4,12 @@ import {
   Get,
   HttpCode,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Request } from 'express';
+import { getAuditRequestContext } from '../audit/audit-request-context';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { LoginDto } from './dto/login.dto';
@@ -21,15 +24,15 @@ export class AuthController {
 
   @Post('register')
   @ApiOperation({ summary: 'Đăng ký người dùng + tạo tài khoản mặc định' })
-  register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
+  register(@Body() dto: RegisterDto, @Req() request: Request) {
+    return this.authService.register(dto, getAuditRequestContext(request));
   }
 
   @Post('login')
   @HttpCode(200)
   @ApiOperation({ summary: 'Đăng nhập, trả JWT access token' })
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  login(@Body() dto: LoginDto, @Req() request: Request) {
+    return this.authService.login(dto, getAuditRequestContext(request));
   }
 
   @Get('me')
