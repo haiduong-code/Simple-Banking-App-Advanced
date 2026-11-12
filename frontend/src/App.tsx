@@ -7,11 +7,47 @@ import TransferPage from './pages/TransferPage';
 import TransactionHistoryPage from './pages/TransactionHistoryPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminModule3Page from './pages/AdminModule3Page';
+import TransactionDetailsPage from './pages/TransactionDetailsPage';
+import CashPage from './pages/CashPage';
+import SecurityPage from './pages/SecurityPage';
+import AdminOperationsPage from './pages/AdminOperationsPage';
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route
+          path="/transactions/:id"
+          element={
+            <ProtectedRoute>
+              <TransactionDetailsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cash"
+          element={
+            <ProtectedRoute>
+              <CashPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/security"
+          element={
+            <ProtectedRoute>
+              <SecurityPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/operations"
+          element={
+            <ProtectedRoute role="admin">
+              <AdminOperationsPage />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route

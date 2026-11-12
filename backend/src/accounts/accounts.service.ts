@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomInt } from 'crypto';
 import {
@@ -12,6 +17,8 @@ import { AuditService } from '../audit/audit.service';
 import { AccountHistoryQueryDto } from './dto/account-history-query.dto';
 import { AccountHistory } from './entities/account-history.entity';
 import { Account } from './entities/account.entity';
+import { UpdateAccountDto } from './dto/update-account.dto';
+import { minorUnitsToMoney, moneyToMinorUnits } from '../common/money';
 
 @Injectable()
 export class AccountsService {
@@ -83,7 +90,10 @@ export class AccountsService {
     const run = async (entityManager: EntityManager) => {
       const accountRepo = entityManager.getRepository(Account);
       const historyRepo = entityManager.getRepository(AccountHistory);
-      const account = await accountRepo.findOne({ where: { id: accountId } });
+      const account = await accountRepo.findOne({
+        where: { id: accountId },
+        lock: { mode: 'pessimistic_write' },
+      });
       if (!account) {
         throw new NotFoundException('Không tìm thấy tài khoản');
       }
@@ -159,12 +169,70 @@ export class AccountsService {
     return this.toHistorySnapshot(account);
   }
 
+  async findForActor(accountId: string, actorId: string, role: string) {
+    const account = await this.accountRepo.findOneBy({ id: accountId });
+    if (!account) throw new NotFoundException('Không tìm thấy tài khoản');
+    if (role === 'customer' && account.userId !== actorId)
+      throw new ForbiddenException('Chỉ được xem tài khoản của mình');
+    return this.toPublicResult(account);
+  }
+
+  async updateSettings(
+    accountId: string,
+    dto: UpdateAccountDto,
+    actorId: string,
+  ) {
+    if (!dto.status && !dto.tier)
+      throw new BadRequestException(
+        'Cần cung cấp trạng thái hoặc hạng tài khoản',
+      );
+    return this.dataSource.transaction(async (manager) => {
+      const repository = manager.getRepository(Account);
+      const account = await repository.findOne({
+        where: { id: accountId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!account) throw new NotFoundException('Không tìm thấy tài khoản');
+      const beforeData = this.toHistorySnapshot(account);
+      Object.assign(account, dto);
+      await repository.save(account);
+      await manager.getRepository(AccountHistory).save({
+        accountId,
+        changedById: actorId,
+        action: 'settings_change',
+        beforeData,
+        afterData: this.toHistorySnapshot(account),
+      });
+      return this.toPublicResult(account);
+    });
+  }
+
+  toPublicResult(account: Account) {
+    const available =
+      moneyToMinorUnits(account.balance) -
+      moneyToMinorUnits(account.holdAmount ?? '0');
+    return {
+      id: account.id,
+      accountNumber: account.accountNumber,
+      balance: account.balance,
+      availableBalance: minorUnitsToMoney(available > 0n ? available : 0n),
+      holdAmount: account.holdAmount ?? '0.00',
+      currency: account.currency,
+      status: account.status,
+      tier: account.tier,
+      version: account.version,
+      createdAt: account.createdAt,
+    };
+  }
+
   private toHistorySnapshot(account: Account) {
     return {
       accountId: account.id,
       userId: account.userId,
       accountNumber: account.accountNumber,
       currency: account.currency,
+      status: account.status,
+      tier: account.tier,
       balance: account.balance,
       deletedAt: account.deletedAt,
     };

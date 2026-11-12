@@ -6,9 +6,15 @@ import {
   MaxLength,
   MinLength,
   ValidateIf,
+  Matches,
 } from 'class-validator';
 
 export class UpdateMeDto {
+  @ApiPropertyOptional({ example: '0901234567' })
+  @ValidateIf((_, value) => value !== undefined)
+  @IsString()
+  @Matches(/^(?:\+?\d{9,15})?$/)
+  phone?: string;
   @ApiPropertyOptional({ example: 'Nguyễn Văn An' })
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,

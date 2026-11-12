@@ -6,6 +6,24 @@ const ALLOWED_TRANSITIONS: Record<
   TransactionStatus,
   readonly TransactionStatus[]
 > = {
+  [TransactionStatus.INITIATED]: [
+    TransactionStatus.PENDING_OTP,
+    TransactionStatus.PROCESSING,
+    TransactionStatus.FAILED,
+  ],
+  [TransactionStatus.PENDING_OTP]: [
+    TransactionStatus.PENDING_APPROVAL,
+    TransactionStatus.PROCESSING,
+    TransactionStatus.FAILED,
+  ],
+  [TransactionStatus.PENDING_APPROVAL]: [
+    TransactionStatus.PROCESSING,
+    TransactionStatus.FAILED,
+  ],
+  [TransactionStatus.PROCESSING]: [
+    TransactionStatus.COMPLETED,
+    TransactionStatus.FAILED,
+  ],
   [TransactionStatus.PENDING]: [
     TransactionStatus.COMPLETED,
     TransactionStatus.FAILED,
@@ -34,6 +52,7 @@ export class TransactionStateService {
 
     transaction.status = to;
     const now = new Date();
+    transaction.updatedAt = now;
 
     if (to === TransactionStatus.COMPLETED) {
       transaction.completedAt = now;

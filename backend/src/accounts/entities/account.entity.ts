@@ -8,12 +8,25 @@ import {
   ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
+  VersionColumn,
+  Check,
 } from 'typeorm';
 import { LedgerEntry } from '../../ledger/entities/ledger-entry.entity';
 import { Transaction } from '../../transactions/entities/transaction.entity';
 import { User } from '../../users/entities/user.entity';
 
+export enum AccountStatus {
+  ACTIVE = 'active',
+  FROZEN = 'frozen',
+  CLOSED = 'closed',
+}
+export enum AccountTier {
+  STANDARD = 'standard',
+  VIP = 'vip',
+}
+
 @Entity('accounts')
+@Check('accounts_nonnegative_balance', 'balance >= 0 AND hold_amount >= 0')
 export class Account {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -45,6 +58,24 @@ export class Account {
 
   @Column({ type: 'varchar', length: 3, default: 'VND' })
   currency: string;
+
+  @Column({ type: 'enum', enum: AccountStatus, default: AccountStatus.ACTIVE })
+  status: AccountStatus;
+
+  @Column({ type: 'enum', enum: AccountTier, default: AccountTier.STANDARD })
+  tier: AccountTier;
+
+  @Column({
+    name: 'hold_amount',
+    type: 'numeric',
+    precision: 18,
+    scale: 2,
+    default: '0.00',
+  })
+  holdAmount: string;
+
+  @VersionColumn()
+  version: number;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

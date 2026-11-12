@@ -15,10 +15,7 @@ import { getErrorMessage } from '../lib/api';
 import { compactId, formatDateTime, formatJson } from '../lib/format';
 import { formatMoney } from '../lib/money';
 import type { AdminTransaction, AdminUser } from '../types/admin';
-import type {
-  TransactionStatus,
-  TransactionType,
-} from '../types/transactions';
+import type { TransactionStatus, TransactionType } from '../types/transactions';
 import type { UserRole, UserStatus } from '../types/users';
 
 const PAGE_SIZE = 8;
@@ -33,6 +30,10 @@ const tabs: Array<{ value: AdminTab; label: string }> = [
 ];
 
 const transactionStatusLabels: Record<TransactionStatus, string> = {
+  initiated: 'Đã khởi tạo',
+  pending_otp: 'Chờ OTP',
+  pending_approval: 'Chờ admin duyệt',
+  processing: 'Đang xử lý',
   pending: 'Đang xử lý',
   completed: 'Hoàn tất',
   failed: 'Thất bại',
@@ -40,6 +41,7 @@ const transactionStatusLabels: Record<TransactionStatus, string> = {
 };
 
 const transactionTypeLabels: Record<TransactionType, string> = {
+  withdrawal: 'Rút tiền',
   transfer: 'Transfer',
   deposit: 'Deposit',
   reversal: 'Reversal',
@@ -62,7 +64,9 @@ function statusBadge(status: TransactionStatus) {
           : 'bg-red-50 text-red-700';
 
   return (
-    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${className}`}>
+    <span
+      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${className}`}
+    >
       {transactionStatusLabels[status]}
     </span>
   );
@@ -75,7 +79,9 @@ function userStatusBadge(status: UserStatus) {
       : 'bg-red-50 text-red-700';
 
   return (
-    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${className}`}>
+    <span
+      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${className}`}
+    >
       {userStatusLabels[status]}
     </span>
   );
@@ -100,13 +106,19 @@ export default function AdminModule3Page() {
   const [userStatus, setUserStatus] = useState<UserStatus | ''>('');
   const [userRole, setUserRole] = useState<UserRole | ''>('');
   const [includeDeleted, setIncludeDeleted] = useState(false);
-  const [transactionStatus, setTransactionStatus] = useState<TransactionStatus | ''>('');
-  const [transactionType, setTransactionType] = useState<TransactionType | ''>('');
+  const [transactionStatus, setTransactionStatus] = useState<
+    TransactionStatus | ''
+  >('');
+  const [transactionType, setTransactionType] = useState<TransactionType | ''>(
+    '',
+  );
   const [accountIdFilter, setAccountIdFilter] = useState('');
   const [auditAction, setAuditAction] = useState('');
   const [auditEntity, setAuditEntity] = useState('');
   const [historyAccountId, setHistoryAccountId] = useState('');
-  const [reverseTarget, setReverseTarget] = useState<AdminTransaction | null>(null);
+  const [reverseTarget, setReverseTarget] = useState<AdminTransaction | null>(
+    null,
+  );
   const [reverseReason, setReverseReason] = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
 
@@ -137,12 +149,7 @@ export default function AdminModule3Page() {
       type: transactionType || undefined,
       accountId: accountIdFilter.trim() || undefined,
     }),
-    [
-      accountIdFilter,
-      transactionStatus,
-      transactionType,
-      transactionsPage,
-    ],
+    [accountIdFilter, transactionStatus, transactionType, transactionsPage],
   );
 
   const transactionsQuery = useQuery({
@@ -219,8 +226,13 @@ export default function AdminModule3Page() {
   });
 
   const reverseMutation = useMutation({
-    mutationFn: ({ transactionId, reason }: { transactionId: string; reason: string }) =>
-      reverseTransaction(transactionId, { reason }),
+    mutationFn: ({
+      transactionId,
+      reason,
+    }: {
+      transactionId: string;
+      reason: string;
+    }) => reverseTransaction(transactionId, { reason }),
     onSuccess: async () => {
       setFeedback('Đã tạo reversal và đánh dấu giao dịch gốc đã hoàn');
       setReverseTarget(null);
@@ -237,7 +249,8 @@ export default function AdminModule3Page() {
   const userTotalPages = usersQuery.data?.meta.totalPages ?? 0;
   const transactionTotalPages = transactionsQuery.data?.meta.totalPages ?? 0;
   const auditTotalPages = auditQuery.data?.meta.totalPages ?? 0;
-  const accountHistoryTotalPages = accountHistoryQuery.data?.meta.totalPages ?? 0;
+  const accountHistoryTotalPages =
+    accountHistoryQuery.data?.meta.totalPages ?? 0;
 
   const activeMutationError =
     statusMutation.error ||
@@ -347,7 +360,9 @@ export default function AdminModule3Page() {
                         <th className="px-6 py-3 font-semibold">Role</th>
                         <th className="px-6 py-3 font-semibold">Status</th>
                         <th className="px-6 py-3 font-semibold">Accounts</th>
-                        <th className="px-6 py-3 text-right font-semibold">Thao tác</th>
+                        <th className="px-6 py-3 text-right font-semibold">
+                          Thao tác
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -390,7 +405,9 @@ export default function AdminModule3Page() {
                   page={usersQuery.data.meta.page}
                   totalPages={userTotalPages}
                   disabled={usersQuery.isFetching}
-                  onPrevious={() => setUsersPage((current) => Math.max(1, current - 1))}
+                  onPrevious={() =>
+                    setUsersPage((current) => Math.max(1, current - 1))
+                  }
                   onNext={() => setUsersPage((current) => current + 1)}
                 />
               </>
@@ -406,7 +423,9 @@ export default function AdminModule3Page() {
               <select
                 value={transactionStatus}
                 onChange={(event) => {
-                  setTransactionStatus(event.target.value as TransactionStatus | '');
+                  setTransactionStatus(
+                    event.target.value as TransactionStatus | '',
+                  );
                   setTransactionsPage(1);
                 }}
                 className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-50"
@@ -420,7 +439,9 @@ export default function AdminModule3Page() {
               <select
                 value={transactionType}
                 onChange={(event) => {
-                  setTransactionType(event.target.value as TransactionType | '');
+                  setTransactionType(
+                    event.target.value as TransactionType | '',
+                  );
                   setTransactionsPage(1);
                 }}
                 className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-50"
@@ -455,14 +476,23 @@ export default function AdminModule3Page() {
                         <th className="px-6 py-3 font-semibold">Thời gian</th>
                         <th className="px-6 py-3 font-semibold">Luồng tiền</th>
                         <th className="px-6 py-3 font-semibold">Type</th>
-                        <th className="px-6 py-3 text-right font-semibold">Số tiền</th>
-                        <th className="px-6 py-3 text-center font-semibold">Status</th>
-                        <th className="px-6 py-3 text-right font-semibold">Thao tác</th>
+                        <th className="px-6 py-3 text-right font-semibold">
+                          Số tiền
+                        </th>
+                        <th className="px-6 py-3 text-center font-semibold">
+                          Status
+                        </th>
+                        <th className="px-6 py-3 text-right font-semibold">
+                          Thao tác
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {transactionsQuery.data.items.map((item) => (
-                        <tr key={item.id} className="transition hover:bg-slate-50/70">
+                        <tr
+                          key={item.id}
+                          className="transition hover:bg-slate-50/70"
+                        >
                           <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-500">
                             <p>{formatDateTime(item.createdAt)}</p>
                             <p className="mt-1 font-mono text-xs text-slate-400">
@@ -559,7 +589,9 @@ export default function AdminModule3Page() {
                     <article key={item.id} className="px-6 py-5">
                       <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
                         <div>
-                          <p className="font-semibold text-slate-900">{item.action}</p>
+                          <p className="font-semibold text-slate-900">
+                            {item.action}
+                          </p>
                           <p className="mt-1 text-sm text-slate-500">
                             {item.entity} · {compactId(item.entityId)} · actor{' '}
                             {compactId(item.actorId)}
@@ -570,7 +602,10 @@ export default function AdminModule3Page() {
                         </p>
                       </div>
                       <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                        <SnapshotDetails title="Before" value={item.beforeData} />
+                        <SnapshotDetails
+                          title="Before"
+                          value={item.beforeData}
+                        />
                         <SnapshotDetails title="After" value={item.afterData} />
                       </div>
                     </article>
@@ -580,7 +615,9 @@ export default function AdminModule3Page() {
                   page={auditQuery.data.meta.page}
                   totalPages={auditTotalPages}
                   disabled={auditQuery.isFetching}
-                  onPrevious={() => setAuditPage((current) => Math.max(1, current - 1))}
+                  onPrevious={() =>
+                    setAuditPage((current) => Math.max(1, current - 1))
+                  }
                   onNext={() => setAuditPage((current) => current + 1)}
                 />
               </>
@@ -625,7 +662,9 @@ export default function AdminModule3Page() {
                     <article key={item.id} className="px-6 py-5">
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                          <p className="font-semibold text-slate-900">{item.action}</p>
+                          <p className="font-semibold text-slate-900">
+                            {item.action}
+                          </p>
                           <p className="mt-1 text-xs text-slate-500">
                             {formatDateTime(item.createdAt)} · actor{' '}
                             {compactId(item.changedById)}
@@ -636,7 +675,10 @@ export default function AdminModule3Page() {
                         </span>
                       </div>
                       <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                        <SnapshotDetails title="Before" value={item.beforeData} />
+                        <SnapshotDetails
+                          title="Before"
+                          value={item.beforeData}
+                        />
                         <SnapshotDetails title="After" value={item.afterData} />
                       </div>
                     </article>
@@ -696,7 +738,9 @@ export default function AdminModule3Page() {
             </label>
             <textarea
               value={reverseReason}
-              onChange={(event) => setReverseReason(event.target.value.slice(0, 255))}
+              onChange={(event) =>
+                setReverseReason(event.target.value.slice(0, 255))
+              }
               rows={3}
               className="mt-1.5 w-full resize-none rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-50"
               placeholder="Ví dụ: Customer requested refund"
@@ -719,7 +763,9 @@ export default function AdminModule3Page() {
                 disabled={reverseMutation.isPending || !reverseReason.trim()}
                 className="rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {reverseMutation.isPending ? 'Đang xử lý...' : 'Xác nhận reversal'}
+                {reverseMutation.isPending
+                  ? 'Đang xử lý...'
+                  : 'Xác nhận reversal'}
               </button>
             </div>
           </form>
@@ -745,11 +791,15 @@ function UserRow({
   onPickAccountHistory: (accountId: string) => void;
 }) {
   return (
-    <tr className={`transition hover:bg-slate-50/70 ${user.deletedAt ? 'opacity-60' : ''}`}>
+    <tr
+      className={`transition hover:bg-slate-50/70 ${user.deletedAt ? 'opacity-60' : ''}`}
+    >
       <td className="px-6 py-4">
         <p className="font-semibold text-slate-900">{user.fullName}</p>
         <p className="mt-1 break-all text-sm text-slate-500">{user.email}</p>
-        <p className="mt-1 font-mono text-xs text-slate-400">{compactId(user.id)}</p>
+        <p className="mt-1 font-mono text-xs text-slate-400">
+          {compactId(user.id)}
+        </p>
       </td>
       <td className="px-6 py-4 text-sm font-semibold capitalize text-slate-700">
         {user.role}
@@ -768,7 +818,10 @@ function UserRow({
         <div className="space-y-3">
           {user.accounts.length ? (
             user.accounts.map((account) => (
-              <div key={account.id} className="rounded-xl border border-slate-200 p-3">
+              <div
+                key={account.id}
+                className="rounded-xl border border-slate-200 p-3"
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-mono text-sm font-semibold text-slate-800">
@@ -855,7 +908,10 @@ function LoadingRows() {
   return (
     <div className="space-y-3 p-6">
       {Array.from({ length: 5 }).map((_, index) => (
-        <div key={index} className="h-16 animate-pulse rounded-xl bg-slate-100" />
+        <div
+          key={index}
+          className="h-16 animate-pulse rounded-xl bg-slate-100"
+        />
       ))}
     </div>
   );

@@ -2,7 +2,8 @@ export interface SafeUser {
   id: string;
   fullName: string;
   email: string;
-  role: 'customer' | 'admin';
+  phone?: string | null;
+  role: 'customer' | 'teller' | 'admin';
   status: 'active' | 'locked';
   createdAt: string;
   deletedAt?: string | null;
@@ -10,6 +11,7 @@ export interface SafeUser {
 
 export interface AuthResult {
   accessToken: string;
+  refreshToken: string;
   user: SafeUser;
 }
 

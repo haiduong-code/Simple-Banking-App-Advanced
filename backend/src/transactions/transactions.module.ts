@@ -7,6 +7,8 @@ import { Transaction } from './entities/transaction.entity';
 import { TransactionStateService } from './transaction-state.service';
 import { TransactionsController } from './transactions.controller';
 import { TransactionsService } from './transactions.service';
+import { BankingOperationsService } from './banking-operations.service';
+import { OtpDeliveryService } from './otp-delivery.service';
 
 @Module({
   imports: [
@@ -15,6 +17,11 @@ import { TransactionsService } from './transactions.service';
     AuditModule,
   ],
   controllers: [TransactionsController],
-  providers: [TransactionsService, TransactionStateService],
+  providers: [
+    TransactionsService,
+    TransactionStateService,
+    BankingOperationsService,
+    OtpDeliveryService,
+  ],
 })
 export class TransactionsModule {}

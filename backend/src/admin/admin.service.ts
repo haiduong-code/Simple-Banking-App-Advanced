@@ -1,22 +1,18 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
-import { Account } from '../accounts/entities/account.entity';
+import { Repository } from 'typeorm';
 import { AccountsService } from '../accounts/accounts.service';
 import { AuditRequestContext } from '../audit/audit-request-context';
 import { AuditService } from '../audit/audit.service';
 import { normalizeMoney } from '../common/money';
-import {
-  Transaction,
-  TransactionStatus,
-  TransactionType,
-} from '../transactions/entities/transaction.entity';
+import { Transaction } from '../transactions/entities/transaction.entity';
 import { UsersService } from '../users/users.service';
 import { UserHistory } from '../users/entities/user-history.entity';
-import { User, UserRole, UserStatus } from '../users/entities/user.entity';
+import { User, UserStatus } from '../users/entities/user.entity';
 import { AdminTransactionsQueryDto } from './dto/admin-transactions-query.dto';
 import { AdminUsersQueryDto } from './dto/admin-users-query.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
+import { RefreshSession } from '../auth/entities/refresh-session.entity';
 
 @Injectable()
 export class AdminService {
@@ -74,13 +70,22 @@ export class AdminService {
     return this.userRepo.manager.transaction(async (manager) => {
       const userRepo = manager.getRepository(User);
       const historyRepo = manager.getRepository(UserHistory);
-      const user = await userRepo.findOne({ where: { id: userId } });
+      const user = await userRepo.findOne({
+        where: { id: userId },
+        lock: { mode: 'pessimistic_write' },
+      });
       if (!user) {
         throw new NotFoundException('Không tìm thấy người dùng');
       }
 
       const beforeData = this.toUserAuditSnapshot(user);
       user.status = dto.status;
+      if (dto.status === UserStatus.LOCKED) {
+        user.tokenVersion = (user.tokenVersion ?? 0) + 1;
+        await manager
+          .getRepository(RefreshSession)
+          .update({ userId }, { revokedAt: new Date() });
+      }
       const savedUser = await userRepo.save(user);
       const afterData = this.toUserAuditSnapshot(savedUser);
 
@@ -179,8 +184,8 @@ export class AdminService {
       id: user.id,
       fullName: user.fullName,
       email: user.email,
-      role: user.role as UserRole,
-      status: user.status as UserStatus,
+      role: user.role,
+      status: user.status,
       createdAt: user.createdAt,
       deletedAt: user.deletedAt,
       accounts:
@@ -189,6 +194,8 @@ export class AdminService {
           accountNumber: account.accountNumber,
           balance: normalizeMoney(account.balance),
           currency: account.currency,
+          status: account.status,
+          tier: account.tier,
           createdAt: account.createdAt,
           deletedAt: account.deletedAt,
         })) ?? [],
@@ -203,8 +210,8 @@ export class AdminService {
       toAccountId: transaction.toAccountId,
       toAccountNumber: transaction.toAccount?.accountNumber ?? null,
       amount: normalizeMoney(transaction.amount),
-      type: transaction.type as TransactionType,
-      status: transaction.status as TransactionStatus,
+      type: transaction.type,
+      status: transaction.status,
       originalTransactionId: transaction.originalTransactionId,
       reversalTransactionId: transaction.reversalTransactions?.[0]?.id ?? null,
       description: transaction.description,

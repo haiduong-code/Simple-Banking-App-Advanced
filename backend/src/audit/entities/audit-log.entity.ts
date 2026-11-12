@@ -35,6 +35,10 @@ export class AuditLog {
   @Column({ name: 'user_agent', type: 'varchar', length: 512, nullable: true })
   userAgent: string | null;
 
+  @Index()
+  @Column({ name: 'request_id', type: 'varchar', length: 100, nullable: true })
+  requestId: string | null;
+
   @Column({ name: 'before_data', type: 'jsonb', nullable: true })
   beforeData: AuditLogData;
 

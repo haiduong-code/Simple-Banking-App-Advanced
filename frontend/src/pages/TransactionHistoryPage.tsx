@@ -1,9 +1,9 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useAuthStore } from '../store/auth';
+import { transactionStatusLabels } from '../lib/transaction-labels';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  getTransactionHistory,
-  reverseTransaction,
-} from '../api/transactions';
+import { getTransactionHistory, reverseTransaction } from '../api/transactions';
 import BankingLayout from '../components/BankingLayout';
 import { getErrorMessage } from '../lib/api';
 import { compactId } from '../lib/format';
@@ -43,23 +43,30 @@ function canReverse(transaction: TransactionItem): boolean {
 }
 
 export default function TransactionHistoryPage() {
+  const user = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [direction, setDirection] = useState<TransactionDirection>('all');
-  const [reverseTarget, setReverseTarget] = useState<TransactionItem | null>(null);
+  const [reverseTarget, setReverseTarget] = useState<TransactionItem | null>(
+    null,
+  );
   const [reverseReason, setReverseReason] = useState('');
   const [message, setMessage] = useState<string | null>(null);
 
   const { data, isLoading, isFetching, isError, refetch } = useQuery({
     queryKey: ['transactions', { page, direction }],
-    queryFn: () =>
-      getTransactionHistory({ page, limit: PAGE_SIZE, direction }),
+    queryFn: () => getTransactionHistory({ page, limit: PAGE_SIZE, direction }),
     placeholderData: (previousData) => previousData,
   });
 
   const reverseMutation = useMutation({
-    mutationFn: ({ transactionId, reason }: { transactionId: string; reason: string }) =>
-      reverseTransaction(transactionId, { reason }),
+    mutationFn: ({
+      transactionId,
+      reason,
+    }: {
+      transactionId: string;
+      reason: string;
+    }) => reverseTransaction(transactionId, { reason }),
     onSuccess: async () => {
       setMessage('Đã tạo giao dịch reversal thành công');
       setReverseTarget(null);
@@ -87,9 +94,13 @@ export default function TransactionHistoryPage() {
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-col gap-4 border-b border-slate-200 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="font-semibold text-slate-900">Danh sách giao dịch</h2>
+            <h2 className="font-semibold text-slate-900">
+              Danh sách giao dịch
+            </h2>
             <p className="mt-1 text-sm text-slate-500">
-              {data ? `${data.meta.total} giao dịch được tìm thấy` : 'Đang tải dữ liệu'}
+              {data
+                ? `${data.meta.total} giao dịch được tìm thấy`
+                : 'Đang tải dữ liệu'}
             </p>
           </div>
 
@@ -113,7 +124,10 @@ export default function TransactionHistoryPage() {
 
         {reverseMutation.isError && (
           <div className="border-b border-red-100 bg-red-50 px-6 py-3 text-sm text-red-700">
-            {getErrorMessage(reverseMutation.error, 'Không thể hoàn tiền giao dịch')}
+            {getErrorMessage(
+              reverseMutation.error,
+              'Không thể hoàn tiền giao dịch',
+            )}
           </div>
         )}
 
@@ -126,12 +140,17 @@ export default function TransactionHistoryPage() {
         {isLoading ? (
           <div className="space-y-3 p-6">
             {Array.from({ length: 5 }).map((_, index) => (
-              <div key={index} className="h-14 animate-pulse rounded-xl bg-slate-100" />
+              <div
+                key={index}
+                className="h-14 animate-pulse rounded-xl bg-slate-100"
+              />
             ))}
           </div>
         ) : isError ? (
           <div className="px-6 py-16 text-center">
-            <p className="font-semibold text-slate-800">Không tải được lịch sử giao dịch</p>
+            <p className="font-semibold text-slate-800">
+              Không tải được lịch sử giao dịch
+            </p>
             <button
               type="button"
               onClick={() => refetch()}
@@ -148,18 +167,31 @@ export default function TransactionHistoryPage() {
                   <tr>
                     <th className="px-6 py-3 font-semibold">Thời gian</th>
                     <th className="px-6 py-3 font-semibold">Loại giao dịch</th>
-                    <th className="px-6 py-3 font-semibold">Tài khoản đối ứng</th>
+                    <th className="px-6 py-3 font-semibold">
+                      Tài khoản đối ứng
+                    </th>
                     <th className="px-6 py-3 font-semibold">Nội dung</th>
-                    <th className="px-6 py-3 text-right font-semibold">Số tiền</th>
-                    <th className="px-6 py-3 text-center font-semibold">Trạng thái</th>
-                    <th className="px-6 py-3 text-right font-semibold">Thao tác</th>
+                    <th className="px-6 py-3 text-right font-semibold">
+                      Số tiền
+                    </th>
+                    <th className="px-6 py-3 text-center font-semibold">
+                      Trạng thái
+                    </th>
+                    <th className="px-6 py-3 text-right font-semibold">
+                      Thao tác
+                    </th>
                   </tr>
                 </thead>
-                <tbody className={`divide-y divide-slate-100 ${isFetching ? 'opacity-60' : ''}`}>
+                <tbody
+                  className={`divide-y divide-slate-100 ${isFetching ? 'opacity-60' : ''}`}
+                >
                   {data.items.map((transaction) => {
                     const incoming = transaction.direction === 'incoming';
                     return (
-                      <tr key={transaction.id} className="transition hover:bg-slate-50/70">
+                      <tr
+                        key={transaction.id}
+                        className="transition hover:bg-slate-50/70"
+                      >
                         <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-500">
                           {formatDate(transaction.createdAt)}
                         </td>
@@ -190,7 +222,8 @@ export default function TransactionHistoryPage() {
                             incoming ? 'text-emerald-600' : 'text-slate-800'
                           }`}
                         >
-                          {incoming ? '+' : '-'} {formatMoney(transaction.amount)} VND
+                          {incoming ? '+' : '-'}{' '}
+                          {formatMoney(transaction.amount)} VND
                         </td>
                         <td className="px-6 py-4 text-center">
                           <span
@@ -204,17 +237,17 @@ export default function TransactionHistoryPage() {
                                     : 'bg-red-50 text-red-700'
                             }`}
                           >
-                            {transaction.status === 'completed'
-                              ? 'Thành công'
-                              : transaction.status === 'pending'
-                                ? 'Đang xử lý'
-                                : transaction.status === 'reversed'
-                                  ? 'Đã hoàn'
-                                  : 'Thất bại'}
+                            {transactionStatusLabels[transaction.status]}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right">
-                          {canReverse(transaction) ? (
+                          <Link
+                            className="mr-3 text-sm text-emerald-700 underline"
+                            to={`/transactions/${transaction.id}`}
+                          >
+                            Chi tiết
+                          </Link>
+                          {user?.role === 'admin' && canReverse(transaction) ? (
                             <button
                               type="button"
                               onClick={() => {
@@ -271,7 +304,9 @@ export default function TransactionHistoryPage() {
             <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-slate-100 text-2xl text-slate-400">
               ↔
             </span>
-            <p className="mt-4 font-semibold text-slate-800">Chưa có giao dịch</p>
+            <p className="mt-4 font-semibold text-slate-800">
+              Chưa có giao dịch
+            </p>
             <p className="mt-1 text-sm text-slate-500">
               Các khoản tiền vào và tiền ra sẽ xuất hiện tại đây.
             </p>
@@ -294,7 +329,9 @@ export default function TransactionHistoryPage() {
             className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl"
           >
             <div className="border-b border-slate-100 pb-5">
-              <h2 className="font-semibold text-slate-900">Hoàn tiền giao dịch</h2>
+              <h2 className="font-semibold text-slate-900">
+                Hoàn tiền giao dịch
+              </h2>
               <p className="mt-1 text-sm text-slate-500">
                 Transaction: {compactId(reverseTarget.id)}
               </p>
@@ -315,7 +352,9 @@ export default function TransactionHistoryPage() {
             </label>
             <textarea
               value={reverseReason}
-              onChange={(event) => setReverseReason(event.target.value.slice(0, 255))}
+              onChange={(event) =>
+                setReverseReason(event.target.value.slice(0, 255))
+              }
               rows={3}
               placeholder="Ví dụ: Người nhận yêu cầu hoàn tiền"
               className="mt-1.5 w-full resize-none rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-50"
@@ -338,7 +377,9 @@ export default function TransactionHistoryPage() {
                 disabled={reverseMutation.isPending || !reverseReason.trim()}
                 className="rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {reverseMutation.isPending ? 'Đang xử lý...' : 'Xác nhận hoàn tiền'}
+                {reverseMutation.isPending
+                  ? 'Đang xử lý...'
+                  : 'Xác nhận hoàn tiền'}
               </button>
             </div>
           </form>

@@ -2,6 +2,11 @@ export interface Account {
   id: string;
   accountNumber: string;
   balance: string;
+  availableBalance?: string;
+  holdAmount?: string;
+  status?: 'active' | 'frozen' | 'closed';
+  tier?: 'standard' | 'vip';
+  version?: number;
   currency: string;
   createdAt: string;
   deletedAt?: string | null;

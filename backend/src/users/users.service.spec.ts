@@ -45,7 +45,7 @@ describe('UsersService soft delete', () => {
       findAndCount: jest.fn(),
     };
     accountRepository = {
-      find: jest.fn(),
+      find: jest.fn(async () => []),
       save: jest.fn(async (accounts: Account[]) => accounts),
       delete: jest.fn(),
       softDelete: jest.fn(),

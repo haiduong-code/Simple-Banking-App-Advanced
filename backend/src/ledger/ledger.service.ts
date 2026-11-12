@@ -13,6 +13,7 @@ import {
   normalizeMoney,
 } from '../common/money';
 import { Transaction } from '../transactions/entities/transaction.entity';
+import { OptimisticConflict } from '../common/transaction-retry';
 import { LedgerEntry, LedgerEntryType } from './entities/ledger-entry.entity';
 
 export interface CreateLedgerEntryParams {
@@ -36,6 +37,7 @@ export interface RecordTransferParams {
   amount: string;
   sourceBalanceBefore: string;
   destinationBalanceBefore: string;
+  optimistic?: boolean;
 }
 
 export interface RecordReversalParams {
@@ -68,24 +70,15 @@ export class LedgerService {
     const totals = await repository
       .createQueryBuilder('entry')
       .select(
-        'COALESCE(SUM(CASE WHEN entry.type = :creditType THEN entry.amount ELSE 0 END), 0)',
-        'creditTotal',
-      )
-      .addSelect(
-        'COALESCE(SUM(CASE WHEN entry.type = :debitType THEN entry.amount ELSE 0 END), 0)',
-        'debitTotal',
+        'COALESCE(SUM(CASE WHEN entry.type = :creditType THEN entry.amount ELSE -entry.amount END), 0)',
+        'balance',
       )
       .where('entry.accountId = :accountId', { accountId })
       .setParameters({
         creditType: LedgerEntryType.CREDIT,
-        debitType: LedgerEntryType.DEBIT,
       })
-      .getRawOne<{ creditTotal: string; debitTotal: string }>();
-
-    const creditTotal = moneyToMinorUnits(totals?.creditTotal ?? '0');
-    const debitTotal = moneyToMinorUnits(totals?.debitTotal ?? '0');
-
-    return minorUnitsToMoney(creditTotal - debitTotal);
+      .getRawOne<{ balance: string }>();
+    return normalizeMoney(totals?.balance ?? '0');
   }
 
   async hasEntriesForAccount(
@@ -156,7 +149,11 @@ export class LedgerService {
       normalizeMoney(params.destinationBalanceBefore),
     );
 
-    if (sourceBalanceBefore < amountMinor) {
+    if (
+      sourceBalanceBefore -
+        moneyToMinorUnits(params.sourceAccount.holdAmount ?? '0.00') <
+      amountMinor
+    ) {
       throw new BadRequestException('Số dư tài khoản nguồn không đủ');
     }
 
@@ -175,9 +172,11 @@ export class LedgerService {
 
     params.sourceAccount.balance = sourceBalanceAfterMoney;
     params.destinationAccount.balance = destinationBalanceAfterMoney;
-    await manager
-      .getRepository(Account)
-      .save([params.sourceAccount, params.destinationAccount]);
+    await this.saveBalances(
+      [params.sourceAccount, params.destinationAccount],
+      manager,
+      params.optimistic,
+    );
 
     const debitEntry = await this.createEntry(
       {
@@ -210,6 +209,65 @@ export class LedgerService {
     return { debitEntry, creditEntry };
   }
 
+  async saveBalances(
+    accounts: Account[],
+    manager: EntityManager,
+    optimistic = false,
+  ) {
+    const repository = manager.getRepository(Account);
+    if (!optimistic) {
+      await repository.save(accounts);
+      return;
+    }
+    for (const account of [...accounts].sort((a, b) =>
+      a.id.localeCompare(b.id),
+    )) {
+      const result = await repository
+        .createQueryBuilder()
+        .update(Account)
+        .set({ balance: account.balance, version: () => 'version + 1' })
+        .where('id = :id AND version = :version AND deleted_at IS NULL', {
+          id: account.id,
+          version: account.version,
+        })
+        .execute();
+      if (result.affected !== 1)
+        throw new OptimisticConflict('Account version changed');
+      account.version++;
+    }
+  }
+
+  async recordCash(
+    account: Account,
+    transaction: Transaction,
+    credit: boolean,
+    manager: EntityManager,
+    optimistic = false,
+  ) {
+    const amount = moneyToMinorUnits(transaction.amount);
+    if (amount <= 0n) throw new BadRequestException('Số tiền phải lớn hơn 0');
+    const balance = moneyToMinorUnits(account.balance);
+    if (
+      !credit &&
+      balance - moneyToMinorUnits(account.holdAmount ?? '0.00') < amount
+    )
+      throw new BadRequestException('Số dư không đủ');
+    account.balance = minorUnitsToMoney(
+      credit ? balance + amount : balance - amount,
+    );
+    await this.saveBalances([account], manager, optimistic);
+    return this.createEntry(
+      {
+        accountId: account.id,
+        transactionId: transaction.id,
+        type: credit ? LedgerEntryType.CREDIT : LedgerEntryType.DEBIT,
+        amount: transaction.amount,
+        balanceAfter: account.balance,
+      },
+      manager,
+    );
+  }
+
   async recordReversal(
     params: RecordReversalParams,
     manager: EntityManager,
@@ -236,7 +294,13 @@ export class LedgerService {
       normalizeMoney(params.originalDestinationBalanceBefore),
     );
 
-    if (originalDestinationBalanceBefore < amountMinor) {
+    if (
+      originalDestinationBalanceBefore -
+        moneyToMinorUnits(
+          params.originalDestinationAccount.holdAmount ?? '0.00',
+        ) <
+      amountMinor
+    ) {
       throw new BadRequestException(
         'Tài khoản nhận tiền ban đầu không đủ số dư để hoàn tiền',
       );

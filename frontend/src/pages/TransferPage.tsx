@@ -1,4 +1,6 @@
 import { useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useAuthStore } from '../store/auth';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getMyAccount } from '../api/accounts';
 import { transferMoney } from '../api/transactions';
@@ -25,7 +27,14 @@ interface IdempotencyRequest {
 
 export default function TransferPage() {
   const queryClient = useQueryClient();
-  const idempotencyRequest = useRef<IdempotencyRequest | null>(null);
+  const [initialKey] = useState(() => crypto.randomUUID());
+  const idempotencyRequest = useRef<IdempotencyRequest>({
+    fingerprint: '',
+    key: initialKey,
+  });
+  const submitting = useRef(false);
+  const user = useAuthStore((state) => state.user);
+  const [fromAccountNumber, setFromAccountNumber] = useState('');
   const [toAccountNumber, setToAccountNumber] = useState('');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
@@ -42,13 +51,19 @@ export default function TransferPage() {
       transferMoney(payload, key),
     onSuccess: async (data) => {
       setResult(data);
-      idempotencyRequest.current = null;
+      idempotencyRequest.current = {
+        fingerprint: '',
+        key: crypto.randomUUID(),
+      };
       setAmount('');
       setDescription('');
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['my-account'] }),
         queryClient.invalidateQueries({ queryKey: ['transactions'] }),
       ]);
+    },
+    onSettled: () => {
+      submitting.current = false;
     },
   });
 
@@ -64,7 +79,8 @@ export default function TransferPage() {
     if (!/^\d{10}$/.test(toAccountNumber)) {
       nextErrors.toAccountNumber = 'Số tài khoản phải gồm đúng 10 chữ số';
     } else if (account?.accountNumber === toAccountNumber) {
-      nextErrors.toAccountNumber = 'Không thể chuyển tiền cho chính tài khoản này';
+      nextErrors.toAccountNumber =
+        'Không thể chuyển tiền cho chính tài khoản này';
     }
 
     if (!isValidMoney(normalizedAmount)) {
@@ -75,7 +91,9 @@ export default function TransferPage() {
         nextErrors.amount = 'Số tiền phải lớn hơn 0';
       } else if (
         account &&
-        amountInMinorUnits > moneyToMinorUnits(account.balance)
+        !fromAccountNumber &&
+        amountInMinorUnits >
+          moneyToMinorUnits(account.availableBalance ?? account.balance)
       ) {
         nextErrors.amount = 'Số dư khả dụng không đủ';
       }
@@ -91,22 +109,29 @@ export default function TransferPage() {
 
   const onSubmit = (event: React.FormEvent) => {
     event.preventDefault();
+    if (submitting.current) return;
     const normalizedAmount = normalizeMoneyInput(amount);
     if (!validate(normalizedAmount)) return;
 
     const payload: TransferPayload = {
       toAccountNumber,
+      ...(fromAccountNumber ? { fromAccountNumber } : {}),
       amount: normalizedAmount,
       ...(description.trim() ? { description: description.trim() } : {}),
     };
     const fingerprint = JSON.stringify(payload);
 
-    if (idempotencyRequest.current?.fingerprint !== fingerprint) {
+    if (
+      idempotencyRequest.current.fingerprint &&
+      idempotencyRequest.current.fingerprint !== fingerprint
+    ) {
       idempotencyRequest.current = {
         fingerprint,
         key: crypto.randomUUID(),
       };
     }
+    idempotencyRequest.current.fingerprint = fingerprint;
+    submitting.current = true;
 
     mutation.mutate({
       payload,
@@ -126,7 +151,9 @@ export default function TransferPage() {
         >
           <div className="mb-6 flex items-start justify-between gap-4 border-b border-slate-100 pb-5">
             <div>
-              <h2 className="font-semibold text-slate-900">Thông tin người nhận</h2>
+              <h2 className="font-semibold text-slate-900">
+                Thông tin người nhận
+              </h2>
               <p className="mt-1 text-sm text-slate-500">
                 Kiểm tra kỹ số tài khoản và số tiền trước khi xác nhận.
               </p>
@@ -137,6 +164,22 @@ export default function TransferPage() {
           </div>
 
           <div className="space-y-5">
+            {user?.role !== 'customer' && (
+              <label className="block text-sm">
+                Tài khoản nguồn của khách hàng (để trống nếu dùng tài khoản của
+                bạn)
+                <input
+                  aria-label="Tài khoản nguồn"
+                  value={fromAccountNumber}
+                  onChange={(e) =>
+                    setFromAccountNumber(
+                      e.target.value.replace(/\D/g, '').slice(0, 10),
+                    )
+                  }
+                  className="mt-2 w-full rounded-xl border p-3"
+                />
+              </label>
+            )}
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
                 Số tài khoản nhận
@@ -144,7 +187,9 @@ export default function TransferPage() {
               <input
                 value={toAccountNumber}
                 onChange={(event) => {
-                  setToAccountNumber(event.target.value.replace(/\D/g, '').slice(0, 10));
+                  setToAccountNumber(
+                    event.target.value.replace(/\D/g, '').slice(0, 10),
+                  );
                   clearFeedback('toAccountNumber');
                 }}
                 inputMode="numeric"
@@ -157,18 +202,22 @@ export default function TransferPage() {
                 }`}
               />
               {errors.toAccountNumber && (
-                <p className="mt-1.5 text-sm text-red-600">{errors.toAccountNumber}</p>
+                <p className="mt-1.5 text-sm text-red-600">
+                  {errors.toAccountNumber}
+                </p>
               )}
             </div>
 
             <div>
               <div className="mb-1.5 flex items-center justify-between">
-                <label className="text-sm font-medium text-slate-700">Số tiền</label>
+                <label className="text-sm font-medium text-slate-700">
+                  Số tiền
+                </label>
                 {account && (
                   <button
                     type="button"
                     onClick={() => {
-                      setAmount(account.balance);
+                      setAmount(account.availableBalance ?? account.balance);
                       clearFeedback('amount');
                     }}
                     className="text-xs font-semibold text-emerald-700 hover:text-emerald-800"
@@ -181,7 +230,9 @@ export default function TransferPage() {
                 <input
                   value={amount}
                   onChange={(event) => {
-                    setAmount(event.target.value.replace(/[^\d.,]/g, '').slice(0, 19));
+                    setAmount(
+                      event.target.value.replace(/[^\d.,]/g, '').slice(0, 19),
+                    );
                     clearFeedback('amount');
                   }}
                   inputMode="decimal"
@@ -211,7 +262,9 @@ export default function TransferPage() {
                 <label className="text-sm font-medium text-slate-700">
                   Nội dung chuyển khoản
                 </label>
-                <span className="text-xs text-slate-400">{description.length}/255</span>
+                <span className="text-xs text-slate-400">
+                  {description.length}/255
+                </span>
               </div>
               <textarea
                 value={description}
@@ -224,14 +277,19 @@ export default function TransferPage() {
                 className="w-full resize-none rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-50"
               />
               {errors.description && (
-                <p className="mt-1.5 text-sm text-red-600">{errors.description}</p>
+                <p className="mt-1.5 text-sm text-red-600">
+                  {errors.description}
+                </p>
               )}
             </div>
           </div>
 
           {mutation.isError && (
             <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {getErrorMessage(mutation.error, 'Không thể thực hiện chuyển khoản')}
+              {getErrorMessage(
+                mutation.error,
+                'Không thể thực hiện chuyển khoản',
+              )}
               <p className="mt-1 text-xs text-red-500">
                 Bạn có thể thử lại; hệ thống sẽ không tạo giao dịch trùng.
               </p>
@@ -240,11 +298,21 @@ export default function TransferPage() {
 
           {result && (
             <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-              <p className="font-semibold text-emerald-800">Chuyển khoản thành công</p>
+              <p className="font-semibold text-emerald-800">
+                {result.status === 'completed'
+                  ? 'Chuyển khoản thành công'
+                  : 'Giao dịch đang chờ xác nhận'}
+              </p>
               <p className="mt-1 text-sm text-emerald-700">
-                Đã chuyển {formatMoney(result.amount)} VND tới tài khoản{' '}
+                Số tiền {formatMoney(result.amount)} VND tới tài khoản{' '}
                 {result.toAccountNumber}.
               </p>
+              <Link
+                className="mt-3 inline-block font-semibold text-emerald-800 underline"
+                to={`/transactions/${result.id}`}
+              >
+                Xem giao dịch và xác nhận OTP
+              </Link>
             </div>
           )}
 
@@ -271,12 +339,16 @@ export default function TransferPage() {
                 </p>
                 <p className="mt-5 text-xs text-emerald-100">Số dư khả dụng</p>
                 <p className="mt-1 text-2xl font-bold">
-                  {formatMoney(account.balance)}{' '}
-                  <span className="text-base font-semibold">{account.currency}</span>
+                  {formatMoney(account.availableBalance ?? account.balance)}{' '}
+                  <span className="text-base font-semibold">
+                    {account.currency}
+                  </span>
                 </p>
               </>
             ) : (
-              <p className="mt-4 text-sm text-red-100">Không tải được tài khoản.</p>
+              <p className="mt-4 text-sm text-red-100">
+                Không tải được tài khoản.
+              </p>
             )}
           </div>
 

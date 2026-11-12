@@ -1,4 +1,10 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { BankingSubscriber } from './database/banking.subscriber';
+import { DatabaseIntegrityService } from './database/database-integrity.service';
+import { RequestContextMiddleware } from './common/request-context';
+import { MonitoringModule } from './monitoring/monitoring.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AdminModule } from './admin/admin.module';
@@ -23,7 +29,11 @@ import * as Joi from 'joi';
         DB_PASSWORD: Joi.string().required(),
         DB_NAME: Joi.string().required(),
         JWT_SECRET: Joi.string().required(),
-        JWT_EXPIRES_IN: Joi.string().default('1d'),
+        JWT_EXPIRES_IN: Joi.string().default('15m'),
+        BANKING_LOCK_MODE: Joi.string()
+          .valid('pessimistic', 'optimistic')
+          .default('pessimistic'),
+        DB_SYNCHRONIZE: Joi.boolean().default(true),
         CORS_ORIGIN: Joi.string().uri().default('http://localhost:5173'),
         PORT: Joi.number().default(3000),
       }),
@@ -38,11 +48,24 @@ import * as Joi from 'joi';
         password: config.get('DB_PASSWORD'),
         database: config.get('DB_NAME'),
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: true, // chi dung khi dev, tat khi production
-        logging: true,
+        subscribers: [BankingSubscriber],
+        synchronize: config.get<boolean>('DB_SYNCHRONIZE', true),
+        logging: false,
+        extra: { connectionTimeoutMillis: 3000, max: 30 },
       }),
       inject: [ConfigService],
     }),
+    ScheduleModule.forRoot(),
+    ThrottlerModule.forRoot([
+      { name: 'default', ttl: 60000, limit: 60 },
+      {
+        name: 'user',
+        ttl: 60000,
+        limit: 30,
+        getTracker: (req: { user?: { userId: string }; ip: string }) =>
+          req.user?.userId ?? req.ip,
+      },
+    ]),
     UsersModule,
     AccountsModule,
     AuthModule,
@@ -50,8 +73,13 @@ import * as Joi from 'joi';
     LedgerModule,
     TransactionsModule,
     AdminModule,
+    MonitoringModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, DatabaseIntegrityService],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RequestContextMiddleware).forRoutes('*');
+  }
+}

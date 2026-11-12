@@ -26,12 +26,14 @@ export default function ProfilePage() {
   const [page, setPage] = useState(1);
   const [fullName, setFullName] = useState(user?.fullName ?? '');
   const [email, setEmail] = useState(user?.email ?? '');
+  const [phone, setPhone] = useState(user?.phone ?? '');
   const [formMessage, setFormMessage] = useState<string | null>(null);
 
   useEffect(() => {
     setFullName(user?.fullName ?? '');
     setEmail(user?.email ?? '');
-  }, [user?.email, user?.fullName]);
+    setPhone(user?.phone ?? '');
+  }, [user?.email, user?.fullName, user?.phone]);
 
   const historyQuery = useQuery({
     queryKey: ['user-history', { page }],
@@ -62,7 +64,8 @@ export default function ProfilePage() {
     if (nextEmail && nextEmail !== user?.email) {
       payload.email = nextEmail;
     }
-    if (!payload.fullName && !payload.email) {
+    if (phone !== (user?.phone ?? '')) payload.phone = phone;
+    if (!payload.fullName && !payload.email && payload.phone === undefined) {
       setFormMessage('Không có thay đổi mới');
       return;
     }
@@ -90,6 +93,17 @@ export default function ProfilePage() {
           </div>
 
           <div className="mt-5 space-y-4">
+            <label className="block text-sm font-medium text-slate-700">
+              Số điện thoại
+              <input
+                aria-label="Số điện thoại"
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                pattern="(\+?[0-9]{9,15})?"
+                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3"
+              />
+            </label>
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
                 Họ tên
@@ -246,13 +260,16 @@ export default function ProfilePage() {
 
               <div className="flex items-center justify-between border-t border-slate-200 px-6 py-4">
                 <p className="text-sm text-slate-500">
-                  Trang {historyQuery.data.meta.page} / {Math.max(totalPages, 1)}
+                  Trang {historyQuery.data.meta.page} /{' '}
+                  {Math.max(totalPages, 1)}
                 </p>
                 <div className="flex gap-2">
                   <button
                     type="button"
                     disabled={page <= 1 || historyQuery.isFetching}
-                    onClick={() => setPage((current) => Math.max(1, current - 1))}
+                    onClick={() =>
+                      setPage((current) => Math.max(1, current - 1))
+                    }
                     className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     Trang trước

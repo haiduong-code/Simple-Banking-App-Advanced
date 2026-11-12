@@ -1,12 +1,13 @@
 import type { SafeUser } from './auth';
 import type { HistorySnapshot } from './accounts';
 
-export type UserRole = 'customer' | 'admin';
+export type UserRole = 'customer' | 'teller' | 'admin';
 export type UserStatus = 'active' | 'locked';
 
 export interface UpdateMePayload {
   fullName?: string;
   email?: string;
+  phone?: string;
 }
 
 export type UpdateMeResult = SafeUser;

@@ -3,22 +3,15 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
-  UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import { DataSource, FindOptionsWhere, In, Repository } from 'typeorm';
-import { Account } from '../accounts/entities/account.entity';
+import { Account, AccountStatus } from '../accounts/entities/account.entity';
 import { AuditRequestContext } from '../audit/audit-request-context';
 import { AuditService } from '../audit/audit.service';
-import {
-  MAX_MONEY_MINOR_UNITS,
-  minorUnitsToMoney,
-  moneyToMinorUnits,
-  normalizeMoney,
-} from '../common/money';
+import { normalizeMoney } from '../common/money';
 import { LedgerService } from '../ledger/ledger.service';
-import { User, UserStatus } from '../users/entities/user.entity';
 import {
   TransactionDirection,
   TransactionQueryDto,
@@ -31,6 +24,7 @@ import {
   TransactionType,
 } from './entities/transaction.entity';
 import { TransactionStateService } from './transaction-state.service';
+import { BankingOperationsService } from './banking-operations.service';
 
 @Injectable()
 export class TransactionsService {
@@ -43,6 +37,7 @@ export class TransactionsService {
     private readonly transactionRepo: Repository<Transaction>,
     @InjectRepository(Account)
     private readonly accountRepo: Repository<Account>,
+    private readonly operations: BankingOperationsService,
   ) {}
 
   async transfer(
@@ -51,140 +46,13 @@ export class TransactionsService {
     idempotencyKey: string,
     auditContext?: AuditRequestContext,
   ) {
-    const normalizedAmount = normalizeMoney(dto.amount);
-    const description = dto.description?.trim() || null;
-
-    const previous = await this.findByIdempotencyKey(idempotencyKey);
-    if (previous) {
-      this.assertSameRequest(
-        previous,
-        userId,
-        dto.toAccountNumber,
-        normalizedAmount,
-        description,
-      );
-      return this.toTransferResult(previous);
-    }
-
-    return this.dataSource.transaction('READ COMMITTED', async (manager) => {
-      const accounts = manager.getRepository(Account);
-      const transactions = manager.getRepository(Transaction);
-      const users = manager.getRepository(User);
-
-      const sourceCandidate = await accounts.findOne({ where: { userId } });
-      if (!sourceCandidate) {
-        throw new NotFoundException('Người dùng chưa có tài khoản nguồn');
-      }
-
-      const destinationCandidate = await accounts.findOne({
-        where: { accountNumber: dto.toAccountNumber },
-      });
-      if (!destinationCandidate) {
-        throw new NotFoundException('Tài khoản đích không tồn tại');
-      }
-      if (sourceCandidate.id === destinationCandidate.id) {
-        throw new BadRequestException('Không thể chuyển tiền cho chính mình');
-      }
-
-      // Khóa theo cùng một thứ tự ID để hai giao dịch ngược chiều không deadlock.
-      const lockedAccounts = await accounts.find({
-        where: { id: In([sourceCandidate.id, destinationCandidate.id]) },
-        order: { id: 'ASC' },
-        lock: { mode: 'pessimistic_write' },
-      });
-      const source = lockedAccounts.find(
-        (account) => account.id === sourceCandidate.id,
-      );
-      const destination = lockedAccounts.find(
-        (account) => account.id === destinationCandidate.id,
-      );
-      if (!source || !destination) {
-        throw new NotFoundException('Tài khoản không còn tồn tại');
-      }
-
-      // Request đồng thời cùng key sẽ chờ lock rồi nhìn thấy giao dịch đầu tiên.
-      const duplicate = await transactions.findOne({
-        where: { idempotencyKey },
-        relations: { fromAccount: true, toAccount: true },
-      });
-      if (duplicate) {
-        this.assertSameRequest(
-          duplicate,
-          userId,
-          dto.toAccountNumber,
-          normalizedAmount,
-          description,
-        );
-        return this.toTransferResult(duplicate);
-      }
-
-      const destinationOwner = await users.findOne({
-        where: { id: destination.userId },
-      });
-      if (!destinationOwner || destinationOwner.status !== UserStatus.ACTIVE) {
-        throw new BadRequestException('Tài khoản đích đang bị khóa');
-      }
-
-      const amount = moneyToMinorUnits(normalizedAmount);
-      if (amount <= 0n) {
-        throw new BadRequestException('Số tiền phải lớn hơn 0');
-      }
-
-      const sourceBalance = moneyToMinorUnits(source.balance);
-      const destinationBalance = moneyToMinorUnits(destination.balance);
-      if (sourceBalance < amount) {
-        throw new BadRequestException('Số dư không đủ');
-      }
-      if (destinationBalance + amount > MAX_MONEY_MINOR_UNITS) {
-        throw new UnprocessableEntityException(
-          'Số dư tài khoản đích vượt giới hạn cho phép',
-        );
-      }
-
-      source.balance = minorUnitsToMoney(sourceBalance - amount);
-      destination.balance = minorUnitsToMoney(destinationBalance + amount);
-      await accounts.save([source, destination]);
-
-      const transaction = await transactions.save(
-        transactions.create({
-          fromAccountId: source.id,
-          toAccountId: destination.id,
-          fromAccount: source,
-          toAccount: destination,
-          amount: normalizedAmount,
-          type: TransactionType.TRANSFER,
-          status: TransactionStatus.PENDING,
-          description,
-          idempotencyKey,
-        }),
-      );
-
-      const completedTransaction =
-        await this.transactionStateService.transition(
-          transaction,
-          TransactionStatus.COMPLETED,
-          manager,
-        );
-      await this.auditService.logInTransaction(
-        'transaction.transfer.completed',
-        {
-          actorId: userId,
-          entity: 'Transaction',
-          entityId: completedTransaction.id,
-          ...auditContext,
-          afterData: {
-            transactionId: completedTransaction.id,
-            fromAccountId: completedTransaction.fromAccountId,
-            toAccountId: completedTransaction.toAccountId,
-            amount: normalizeMoney(completedTransaction.amount),
-            status: completedTransaction.status,
-          },
-        },
-        manager,
-      );
-
-      return this.toTransferResult(completedTransaction);
-    });
+    return this.operations.start(
+      userId,
+      dto,
+      idempotencyKey,
+      TransactionType.TRANSFER,
+      auditContext,
+    );
   }
 
   async getHistory(userId: string, query: TransactionQueryDto) {
@@ -259,18 +127,20 @@ export class TransactionsService {
 
       const original = await transactions.findOne({
         where: { id: transactionId },
-        relations: {
-          fromAccount: true,
-          toAccount: true,
-          reversalTransactions: true,
-        },
         lock: { mode: 'pessimistic_write' },
       });
       if (!original) {
         throw new NotFoundException('Giao dịch gốc không tồn tại');
       }
 
-      this.assertCanReverseOriginalTransaction(original);
+      const existingReversal = await transactions.findOne({
+        where: { originalTransactionId: original.id },
+      });
+
+      this.assertCanReverseOriginalTransaction(
+        original,
+        Boolean(existingReversal),
+      );
 
       if (!original.fromAccountId || !original.toAccountId) {
         throw new BadRequestException(
@@ -294,6 +164,14 @@ export class TransactionsService {
           'Tài khoản trong giao dịch gốc không còn tồn tại',
         );
       }
+      for (const account of [originalSource, originalDestination]) {
+        if (account.status && account.status !== AccountStatus.ACTIVE)
+          throw new BadRequestException(
+            'Tài khoản phải ở trạng thái ACTIVE để hoàn tiền',
+          );
+      }
+      if (originalSource.currency !== originalDestination.currency)
+        throw new BadRequestException('Hai tài khoản phải cùng loại tiền tệ');
 
       const reversalTransaction = await transactions.save(
         transactions.create({
@@ -305,7 +183,6 @@ export class TransactionsService {
           type: TransactionType.REVERSAL,
           status: TransactionStatus.PENDING,
           originalTransactionId: original.id,
-          originalTransaction: original,
           description: reason,
           idempotencyKey: randomUUID(),
         }),
@@ -334,6 +211,11 @@ export class TransactionsService {
         TransactionStatus.REVERSED,
         manager,
       );
+      await manager.query(
+        'UPDATE transactions SET original_transaction_id = $1 WHERE id = $2',
+        [original.id, completedReversal.id],
+      );
+      completedReversal.originalTransactionId = original.id;
 
       completedReversal.fromAccount = originalDestination;
       completedReversal.toAccount = originalSource;
@@ -387,38 +269,10 @@ export class TransactionsService {
     });
   }
 
-  private findByIdempotencyKey(key: string): Promise<Transaction | null> {
-    return this.transactionRepo.findOne({
-      where: { idempotencyKey: key },
-      relations: {
-        fromAccount: true,
-        toAccount: true,
-        reversalTransactions: true,
-      },
-    });
-  }
-
-  private assertSameRequest(
+  private assertCanReverseOriginalTransaction(
     transaction: Transaction,
-    userId: string,
-    toAccountNumber: string,
-    amount: string,
-    description: string | null,
+    hasExistingReversal: boolean,
   ): void {
-    const isSame =
-      transaction.fromAccount?.userId === userId &&
-      transaction.toAccount?.accountNumber === toAccountNumber &&
-      normalizeMoney(transaction.amount) === amount &&
-      transaction.description === description;
-
-    if (!isSame) {
-      throw new ConflictException(
-        'Idempotency-Key đã được dùng cho một yêu cầu khác',
-      );
-    }
-  }
-
-  private assertCanReverseOriginalTransaction(transaction: Transaction): void {
     if (transaction.type !== TransactionType.TRANSFER) {
       throw new BadRequestException(
         'Chỉ có thể hoàn tiền giao dịch chuyển khoản gốc',
@@ -433,13 +287,9 @@ export class TransactionsService {
       throw new ConflictException('Chỉ có thể hoàn tiền giao dịch đã hoàn tất');
     }
 
-    if (transaction.reversalTransactions?.length) {
+    if (hasExistingReversal) {
       throw new ConflictException('Giao dịch đã được hoàn tiền');
     }
-  }
-
-  private toTransferResult(transaction: Transaction) {
-    return this.toTransactionResult(transaction);
   }
 
   private toTransactionResult(transaction: Transaction) {

@@ -1,10 +1,19 @@
-export type TransactionDirection = "all" | "incoming" | "outgoing";
-export type TransactionStatus = "pending" | "completed" | "failed" | "reversed";
+export type TransactionDirection = 'all' | 'incoming' | 'outgoing';
+export type TransactionStatus =
+  | 'pending'
+  | 'initiated'
+  | 'pending_otp'
+  | 'pending_approval'
+  | 'processing'
+  | 'completed'
+  | 'failed'
+  | 'reversed';
 export type TransactionType =
-  "transfer" | "deposit" | "reversal" | "opening_balance";
+  'transfer' | 'deposit' | 'withdrawal' | 'reversal' | 'opening_balance';
 
 export interface TransferPayload {
   toAccountNumber: string;
+  fromAccountNumber?: string;
   amount: string;
   description?: string;
 }
@@ -34,7 +43,7 @@ export interface ReverseTransactionResult {
 
 export interface TransactionItem {
   id: string;
-  direction: Exclude<TransactionDirection, "all">;
+  direction: Exclude<TransactionDirection, 'all'>;
   fromAccountNumber: string | null;
   toAccountNumber: string | null;
   amount: string;

@@ -1,5 +1,7 @@
 import {
   Controller,
+  Body,
+  Patch,
   Get,
   Param,
   ParseUUIDPipe,
@@ -15,6 +17,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { UserRole } from '../users/entities/user.entity';
 import { AccountHistoryQueryDto } from './dto/account-history-query.dto';
+import { UpdateAccountDto } from './dto/update-account.dto';
 
 @ApiTags('accounts')
 @Controller('accounts')
@@ -29,13 +32,7 @@ export class AccountsController {
   })
   async getMyAccount(@CurrentUser() user: AuthUser) {
     const account = await this.accountsService.findByUserId(user.userId);
-    return {
-      id: account.id,
-      accountNumber: account.accountNumber,
-      balance: account.balance,
-      currency: account.currency,
-      createdAt: account.createdAt,
-    };
+    return this.accountsService.toPublicResult(account);
   }
 
   @Get(':id/history')
@@ -49,5 +46,24 @@ export class AccountsController {
     @Query() query: AccountHistoryQueryDto,
   ) {
     return this.accountsService.findHistory(accountId, query);
+  }
+
+  @Get(':id')
+  getAccount(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.accountsService.findForActor(id, user.userId, user.role);
+  }
+
+  @Patch(':id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
+  updateAccount(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdateAccountDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.accountsService.updateSettings(id, dto, user.userId);
   }
 }

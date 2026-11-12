@@ -4,12 +4,15 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { User, UserStatus } from '../../users/entities/user.entity';
 import { UsersService } from '../../users/users.service';
+import { requestContext } from '../../common/request-context';
 
 /** Payload mã hóa trong JWT. */
 export interface JwtPayload {
   sub: string;
   email: string;
   role: string;
+  version: number;
+  tokenUse: string;
 }
 
 /** Đối tượng user gắn vào request sau khi xác thực. */
@@ -43,9 +46,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     } catch {
       throw new UnauthorizedException('Token không hợp lệ');
     }
-    if (user.status === UserStatus.LOCKED) {
-      throw new UnauthorizedException('Tài khoản đã bị khóa');
+    if (
+      user.status === UserStatus.LOCKED ||
+      payload.tokenUse !== 'access' ||
+      payload.version !== user.tokenVersion
+    ) {
+      throw new UnauthorizedException(
+        'Phiên đăng nhập hết hạn, bị thu hồi hoặc tài khoản đã bị khóa',
+      );
     }
+    const context = requestContext.getStore();
+    if (context) context.actorId = user.id;
     return { userId: user.id, email: user.email, role: user.role };
   }
 }

@@ -24,7 +24,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
         signOptions: {
           expiresIn: config.get<string>(
             'JWT_EXPIRES_IN',
-            '1d',
+            '15m',
           ) as unknown as number,
         },
       }),

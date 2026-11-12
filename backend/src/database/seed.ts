@@ -40,6 +40,13 @@ const SEED_USERS: SeedUser[] = [
     balance: '10000000.00',
   },
   {
+    fullName: 'Giao dịch viên Demo',
+    email: 'teller@bank.test',
+    accountNumber: '9000000004',
+    balance: '0.00',
+    role: UserRole.TELLER,
+  },
+  {
     fullName: 'Trần Thị Bình',
     email: 'binh@bank.test',
     accountNumber: '9000000002',

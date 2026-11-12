@@ -11,6 +11,11 @@ import {
 } from 'class-validator';
 
 export class AuditLogQueryDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  requestId?: string;
   @ApiPropertyOptional({ default: 1, minimum: 1 })
   @IsOptional()
   @Type(() => Number)

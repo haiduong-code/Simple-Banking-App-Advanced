@@ -1,11 +1,13 @@
 # Môi trường
 .env
-.env.local
-.env.development
-.env.production
+.env.*
+!.env.example
 
 # Node modules
 node_modules/
+.local/
+coverage/
+test-results/
 
 # Build files
 dist/
@@ -20,7 +22,6 @@ gt_code1.md
 all_code1.md
 change2.md
 gt_code2.md
-Bai_tap_bo_sung_Simple_Banking_App.md
 audit.md
 module_3.md
 plan2.md

@@ -9,6 +9,13 @@ import {
 } from 'class-validator';
 
 export class TransferDto {
+  @ApiPropertyOptional({
+    description: 'Teller/admin: tài khoản nguồn của khách hàng',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{10}$/)
+  fromAccountNumber?: string;
   @ApiProperty({ example: '9123456789' })
   @IsString()
   @Matches(/^\d{10}$/, { message: 'Số tài khoản đích phải gồm 10 chữ số' })

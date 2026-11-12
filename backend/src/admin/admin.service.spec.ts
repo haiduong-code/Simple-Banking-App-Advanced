@@ -7,6 +7,7 @@ import { UserHistory } from '../users/entities/user-history.entity';
 import { User, UserRole, UserStatus } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
 import { AdminService } from './admin.service';
+import { RefreshSession } from '../auth/entities/refresh-session.entity';
 
 describe('AdminService', () => {
   let service: AdminService;
@@ -37,6 +38,8 @@ describe('AdminService', () => {
     };
     const manager = {
       getRepository: jest.fn((entity) => {
+        if (entity === RefreshSession)
+          return { update: jest.fn(async () => ({})) };
         if (entity === User) {
           return userRepository;
         }

@@ -1,0 +1,41 @@
+name: Banking checks
+on: [push, pull_request]
+jobs:
+  banking:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: banking_test
+          POSTGRES_PASSWORD: banking_test
+          POSTGRES_DB: banking_test
+        ports: ["55432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U banking_test -d banking_test"
+          --health-interval 2s --health-timeout 2s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.14.0
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+      - run: npm ci
+        working-directory: backend
+      - run: npm run build
+        working-directory: backend
+      - run: npm run lint
+        working-directory: backend
+      - run: npm run test:cov -- --runInBand
+        working-directory: backend
+      - run: npm run test:e2e -- --runInBand --silent
+        working-directory: backend
+      - run: npm run test:concurrency
+        working-directory: backend
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run lint && npm test && npm run build
+        working-directory: frontend

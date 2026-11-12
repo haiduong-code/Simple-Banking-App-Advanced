@@ -92,16 +92,20 @@ export class UsersService {
   ) {
     const hasFullName = typeof dto.fullName === 'string';
     const hasEmail = typeof dto.email === 'string';
-    if (!hasFullName && !hasEmail) {
+    const hasPhone = typeof dto.phone === 'string';
+    if (!hasFullName && !hasEmail && !hasPhone) {
       throw new BadRequestException(
-        'Cần cung cấp fullName hoặc email để cập nhật',
+        'Cần cung cấp fullName, email hoặc phone để cập nhật',
       );
     }
 
     return this.dataSource.transaction(async (manager) => {
       const userRepo = manager.getRepository(User);
       const historyRepo = manager.getRepository(UserHistory);
-      const user = await userRepo.findOne({ where: { id: userId } });
+      const user = await userRepo.findOne({
+        where: { id: userId },
+        lock: { mode: 'pessimistic_write' },
+      });
       if (!user) {
         throw new NotFoundException('Không tìm thấy người dùng');
       }
@@ -128,6 +132,10 @@ export class UsersService {
         user.email = nextEmail;
         changed = true;
       }
+      if (hasPhone && (dto.phone || null) !== user.phone) {
+        user.phone = dto.phone || null;
+        changed = true;
+      }
 
       if (!changed) {
         return this.toUserResult(user);
@@ -135,6 +143,19 @@ export class UsersService {
 
       const savedUser = await userRepo.save(user);
       const afterData = this.toUserHistorySnapshot(savedUser);
+
+      const linkedAccounts = await manager
+        .getRepository(Account)
+        .find({ where: { userId } });
+      for (const account of linkedAccounts) {
+        await manager.getRepository(AccountHistory).save({
+          accountId: account.id,
+          changedById: actorId,
+          action: 'owner_profile_change',
+          beforeData,
+          afterData,
+        });
+      }
 
       await historyRepo.save(
         historyRepo.create({
@@ -246,7 +267,7 @@ export class UsersService {
             action: 'soft_delete',
             beforeData: accountBeforeData.find(
               (snapshot) => snapshot.accountId === account.id,
-            )!,
+            ),
             afterData: this.toAccountHistorySnapshot(account),
           }),
         );
@@ -307,6 +328,7 @@ export class UsersService {
     return {
       userId: user.id,
       email: user.email,
+      phone: user.phone,
       fullName: user.fullName,
       role: user.role,
       status: user.status,
@@ -334,6 +356,7 @@ export class UsersService {
       id: user.id,
       fullName: user.fullName,
       email: user.email,
+      phone: user.phone,
       role: user.role,
       status: user.status,
       createdAt: user.createdAt,

@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, FindOptionsWhere, Repository } from 'typeorm';
 import { AuditLogQueryDto } from './dto/audit-log-query.dto';
 import { AuditLog, AuditLogData } from './entities/audit-log.entity';
+import { requestContext } from '../common/request-context';
 
 export interface AuditLogOptions {
   actorId?: string | null;
@@ -33,6 +34,7 @@ export class AuditService {
     const repository = manager?.getRepository(AuditLog) ?? this.auditLogRepo;
     const log = repository.create({
       action,
+      requestId: requestContext.getStore()?.requestId ?? null,
       actorId: options.actorId ?? null,
       entity: options.entity,
       entityId: options.entityId ?? null,
@@ -47,6 +49,7 @@ export class AuditService {
 
   async findLogs(query: AuditLogQueryDto) {
     const where: FindOptionsWhere<AuditLog> = {};
+    if (query.requestId) where.requestId = query.requestId;
 
     if (query.actorId) {
       where.actorId = query.actorId;
@@ -84,9 +87,18 @@ export class AuditService {
       return null;
     }
 
-    return Object.fromEntries(
-      Object.entries(data).filter(([key]) => !this.isSensitiveKey(key)),
-    );
+    const clean = (value: unknown): unknown => {
+      if (value instanceof Date) return value;
+      if (Array.isArray(value)) return value.map(clean);
+      if (value && typeof value === 'object')
+        return Object.fromEntries(
+          Object.entries(value)
+            .filter(([key]) => !this.isSensitiveKey(key))
+            .map(([key, entry]) => [key, clean(entry)]),
+        );
+      return value;
+    };
+    return clean(data) as AuditLogData;
   }
 
   private isSensitiveKey(key: string): boolean {

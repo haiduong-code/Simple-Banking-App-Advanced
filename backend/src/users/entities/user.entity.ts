@@ -13,6 +13,7 @@ import { Account } from '../../accounts/entities/account.entity';
 /** Vai trò người dùng. */
 export enum UserRole {
   CUSTOMER = 'customer',
+  TELLER = 'teller',
   ADMIN = 'admin',
 }
 
@@ -35,6 +36,9 @@ export class User {
   @Column({ type: 'varchar', length: 255, unique: true })
   email: string;
 
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  phone: string | null;
+
   // Mật khẩu đã hash bằng bcrypt. KHÔNG BAO GIỜ trả ra response.
   @Exclude()
   @Column({ name: 'password_hash', type: 'varchar', length: 255 })
@@ -53,6 +57,29 @@ export class User {
     default: UserStatus.ACTIVE,
   })
   status: UserStatus;
+
+  @Exclude()
+  @Column({ name: 'token_version', default: 0 })
+  tokenVersion: number;
+
+  @Exclude()
+  @Column({ name: 'failed_login_count', default: 0 })
+  failedLoginCount: number;
+
+  @Exclude()
+  @Column({ name: 'last_failed_login_at', type: 'timestamptz', nullable: true })
+  lastFailedLoginAt: Date | null;
+
+  @Exclude()
+  @Column({
+    name: 'failed_login_window_started_at',
+    type: 'timestamptz',
+    nullable: true,
+  })
+  failedLoginWindowStartedAt: Date | null;
+
+  @Column({ name: 'locked_until', type: 'timestamptz', nullable: true })
+  lockedUntil: Date | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

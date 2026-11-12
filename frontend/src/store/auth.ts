@@ -5,9 +5,10 @@ import { tokenStorage } from '../lib/token-storage';
 
 interface AuthState {
   token: string | null;
+  refreshToken: string | null;
   user: SafeUser | null;
   isAuthenticated: boolean;
-  setAuth: (token: string, user: SafeUser) => void;
+  setAuth: (token: string, user: SafeUser, refreshToken: string) => void;
   updateUser: (user: SafeUser) => void;
   logout: () => void;
 }
@@ -16,18 +17,24 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       token: null,
+      refreshToken: null,
       user: null,
       isAuthenticated: false,
-      setAuth: (token, user) => {
+      setAuth: (token, user, refreshToken) => {
         tokenStorage.set(token); // dong bo cho axios interceptor
-        set({ token, user, isAuthenticated: true });
+        set({ token, user, refreshToken, isAuthenticated: true });
       },
       updateUser: (user) => {
         set({ user });
       },
       logout: () => {
         tokenStorage.clear();
-        set({ token: null, user: null, isAuthenticated: false });
+        set({
+          token: null,
+          user: null,
+          refreshToken: null,
+          isAuthenticated: false,
+        });
       },
     }),
     {

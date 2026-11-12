@@ -6,6 +6,7 @@ import {
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
+  Check,
 } from 'typeorm';
 import { Account } from '../../accounts/entities/account.entity';
 import { Transaction } from '../../transactions/entities/transaction.entity';
@@ -17,6 +18,7 @@ export enum LedgerEntryType {
 }
 
 @Entity('ledger_entries')
+@Check('ledger_valid_amounts', 'amount > 0 AND balance_after >= 0')
 export class LedgerEntry {
   @PrimaryGeneratedColumn('uuid')
   id: string;
